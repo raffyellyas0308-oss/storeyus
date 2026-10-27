@@ -1,0 +1,71 @@
+const $ = (s, root=document) => root.querySelector(s);
+const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+const rupiah = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n);
+const products = [
+ {id:'web-store',name:'Website Jual Beli',category:'website',price:200000,icon:'🛒',desc:'Untuk toko online, marketplace, atau jual beli produk/akun.'},
+ {id:'web-portfolio',name:'Website Portofolio',category:'website',price:20000,icon:'👤',desc:'Tampilkan karya dan profil kamu secara profesional.'},
+ {id:'web-api',name:'Website API',category:'website',price:1000000,icon:'⌘',desc:'Integrasi API sesuai kebutuhan (cek harga & detail).'},
+ {id:'web-custom',name:'Website Custom',category:'website',price:1000000,priceLabel:'Rp1.000.000 – Rp15.000.000',icon:'⚙',desc:'Desain dan fitur bebas sesuai keinginan kamu. Harga final mengikuti kebutuhan.'},
+ {id:'spotify',name:'Spotify',category:'mod',price:0,icon:'◉',desc:'Aplikasi modifikasi sesuai daftar harga.',priceLabel:'FREE'},
+ {id:'rename-app',name:'Custom Nama Aplikasi',category:'mod',price:5000,icon:'▦',desc:'Jailbreak / rename aplikasi.'},
+ {id:'capcut-week',name:'CapCut Pro / 1 Minggu',category:'premium',price:10000,icon:'◩',desc:'Fitur lengkap, tanpa watermark.'},
+ {id:'alight',name:'Alight Motion Premium',category:'premium',price:1000,icon:'◌',desc:'Fitur premium, lebih kreatif.'},
+ {id:'capcut-month',name:'CapCut Pro / 1 Bulan',category:'premium',price:90000,icon:'◩',desc:'Akses penuh, tanpa batas.'},
+ {id:'canva-month',name:'Canva 1 Bulan',category:'premium',price:7000,icon:'C',desc:'Desain profesional, lebih mudah.'},
+ {id:'canva-invite',name:'Canva 1 Bulan (Invite)',category:'premium',price:4000,icon:'C',desc:'Masuk lewat link undangan.'},
+ {id:'disney',name:'Disney 1 Bulan',category:'premium',price:25000,icon:'✧',desc:'Sharing 6U (6 pengguna).'},
+ {id:'gemini',name:'Gemini Pro 1 Tahun+',category:'premium',price:32500,icon:'✦',desc:'AI premium, lebih maksimal.'},
+ {id:'netflix',name:'Netflix Sharing 20D+',category:'premium',price:21000,icon:'N',desc:'1P2U (1 perangkat, 2 user).'}
+];
+const categoryNames={website:'Website',mod:'Aplikasi mod',premium:'Premium / Pro'};
+let cart = new Map();
+let proofFile = null;
+let toastTimer;
+function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600)}
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function showAuth(mode='login'){$('#loginForm').classList.toggle('hidden',mode!=='login');$('#registerForm').classList.toggle('hidden',mode!=='register');$('#authTitle').innerHTML=mode==='login'?'Selamat datang<br><span>kembali.</span>':'Mulai dari<br><span>akun baru.</span>';$('#authSubtitle').textContent=mode==='login'?'Masuk untuk melihat katalog dan membuat pesanan.':'Buat akun lokal untuk mengakses katalog YUS Store.';$('#authSwitch').innerHTML=mode==='login'?'Belum punya akun? <button type="button" id="showRegister">Daftar sekarang</button>':'Sudah punya akun? <button type="button" id="showLogin">Masuk di sini</button>';$('#showRegister')?.addEventListener('click',()=>showAuth('register'));$('#showLogin')?.addEventListener('click',()=>showAuth('login'))}
+function getUsers(){try{return JSON.parse(localStorage.getItem('yus_store_users')||'{}')}catch{return {}}}
+function enterStore(username){sessionStorage.setItem('yus_store_session',username);$('#authView').classList.add('hidden');$('#storeView').classList.remove('hidden');$('#userLabel').textContent=username;renderProducts();renderCart();showPage('productsPage');window.scrollTo({top:0,behavior:'smooth'})}
+$('#loginForm').addEventListener('submit',e=>{e.preventDefault();const username=$('#loginUsername').value.trim().toLowerCase(),password=$('#loginPassword').value;const users=getUsers();if(!users[username]||users[username]!==password){toast('Akun tidak ditemukan atau kata sandi salah.');return}enterStore(username)});
+$('#registerForm').addEventListener('submit',e=>{e.preventDefault();const username=$('#registerUsername').value.trim().toLowerCase(),password=$('#registerPassword').value;if(!/^[a-z0-9_.-]{3,24}$/.test(username)){toast('Nama pengguna 3–24 karakter: huruf, angka, titik, _ atau -.');return}if(password!==$('#registerConfirm').value){toast('Konfirmasi kata sandi belum cocok.');return}const users=getUsers();if(users[username]){toast('Nama pengguna sudah dipakai.');return}users[username]=password;localStorage.setItem('yus_store_users',JSON.stringify(users));toast('Akun berhasil dibuat. Silakan masuk.');$('#loginUsername').value=username;showAuth('login')});
+$('#logoutBtn').addEventListener('click',()=>{sessionStorage.removeItem('yus_store_session');cart.clear();$('#storeView').classList.add('hidden');$('#authView').classList.remove('hidden');showAuth('login');window.scrollTo({top:0,behavior:'smooth'})});
+function productCard(p,i){return `<article class="product-card" style="animation-delay:${Math.min(i*35,280)}ms"><div class="product-top"><span class="product-icon">${p.icon}</span><span class="category-chip">${categoryNames[p.category]}</span></div><h3>${escapeHTML(p.name)}</h3><p>${escapeHTML(p.desc)}</p><div class="product-bottom"><span class="price ${p.price===0?'free':''}">${p.priceLabel||rupiah(p.price)}</span><button class="add-btn" data-add="${p.id}">+ Keranjang</button></div></article>`}
+function renderProducts(){const query=$('#searchInput').value.trim().toLowerCase(),cat=$('#categoryFilter').value;const list=products.filter(p=>(cat==='all'||p.category===cat)&&`${p.name} ${p.desc}`.toLowerCase().includes(query));$('#productGrid').innerHTML=list.length?list.map(productCard).join(''):'<p class="empty-state">Produk tidak ditemukan. Coba kata kunci lain.</p>'}
+$('#searchInput').addEventListener('input',renderProducts);$('#categoryFilter').addEventListener('change',renderProducts);
+$('#productGrid').addEventListener('click',e=>{const b=e.target.closest('[data-add]');if(!b)return;const id=b.dataset.add;cart.set(id,(cart.get(id)||0)+1);renderCart();toast(`${products.find(p=>p.id===id).name} masuk keranjang.`);b.animate([{transform:'scale(1)'},{transform:'scale(.92)'},{transform:'scale(1)'}],{duration:250,easing:'ease-out'})});
+function cartRows(){return [...cart.entries()].map(([id,qty])=>({p:products.find(p=>p.id===id),qty})).filter(x=>x.p)}
+function rowsHTML(){return cartRows().map(({p,qty})=>`<div class="checkout-row"><span class="mini-icon">${p.icon}</span><div class="item-info"><b>${escapeHTML(p.name)}</b><small>${p.priceLabel||rupiah(p.price)} · ${rupiah(p.price*qty)}</small></div><div class="qty-controls"><button data-qty="${p.id}" data-delta="-1" aria-label="Kurangi">−</button><span>${qty}</span><button data-qty="${p.id}" data-delta="1" aria-label="Tambah">+</button></div></div>`).join('')}
+function total(){return cartRows().reduce((sum,{p,qty})=>sum+p.price*qty,0)}
+function renderCart(){
+ const html=rowsHTML()||'<p class="empty-state">Keranjangmu masih kosong. Tambahkan produk dari halaman produk.</p>';
+ ['cartPageItems','checkoutItems','confirmationItems'].forEach(id=>{const el=$('#'+id);if(el)el.innerHTML=html});
+ const count=cartRows().reduce((s,x)=>s+x.qty,0);
+ $('#cartCount').textContent=count;$('#navCartCount').textContent=count;
+ ['cartPageTotal','checkoutTotal','paymentTotal','confirmationTotal'].forEach(id=>{const el=$('#'+id);if(el)el.textContent=rupiah(total())});
+}
+function changeQty(id,delta){const next=(cart.get(id)||0)+delta;if(next<=0)cart.delete(id);else cart.set(id,next);renderCart()}
+['cartPageItems','checkoutItems','confirmationItems'].forEach(id=>$('#'+id)?.addEventListener('click',e=>{const b=e.target.closest('[data-qty]');if(b)changeQty(b.dataset.qty,Number(b.dataset.delta))}));
+function showPage(id){
+ if(!$('#'+id))return;
+ $$('.workflow-page').forEach(p=>p.classList.toggle('hidden',p.id!==id));
+ $$('.step-link').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+ renderCart();window.scrollTo({top:0,behavior:'smooth'});
+}
+$$('[data-goto]').forEach(el=>el.addEventListener('click',e=>{
+ if(el.tagName==='A')e.preventDefault();
+ const target=el.dataset.goto;
+ if(target!=='productsPage'&&!cartRows().length){toast('Keranjang masih kosong. Pilih produk terlebih dahulu.');showPage('productsPage');return}
+ showPage(target);
+}));
+$$('.step-link').forEach(el=>el.addEventListener('click',()=>{
+ const target=el.dataset.page;
+ if(target!=='productsPage'&&!cartRows().length){toast('Keranjang masih kosong. Pilih produk terlebih dahulu.');showPage('productsPage');return}
+ showPage(target);
+}));
+$('#cartOpen').addEventListener('click',()=>showPage('cartPage'));
+$$('.copy-btn').forEach(b=>b.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(b.dataset.copy);toast('Nomor pembayaran disalin.')}catch{toast('Nomor: '+b.dataset.copy)}}));
+$('#proofFile').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;if(!f.type.startsWith('image/')){toast('Pilih file gambar untuk bukti transfer.');e.target.value='';return}if(f.size>8*1024*1024){toast('Ukuran gambar maksimal 8 MB.');e.target.value='';return}proofFile=f;const url=URL.createObjectURL(f);$('#proofPreview').innerHTML=`<img src="${url}" alt="Pratinjau bukti transfer"><p>${escapeHTML(f.name)}<br>${(f.size/1024).toFixed(0)} KB</p>`});
+$('#orderBtn').addEventListener('click',()=>{const items=cartRows();if(!items.length){toast('Keranjang masih kosong. Tambahkan produk dulu.');return}const method=$('input[name="payment"]:checked')?.value||'DANA';if(!proofFile){toast('Silakan pilih gambar bukti transfer terlebih dahulu.');$('#proofFile').focus();return}const lines=items.map(({p,qty})=>`• ${p.name} x${qty} — ${rupiah(p.price*qty)}`).join('\n');const note=$('#buyerNote').value.trim();const username=sessionStorage.getItem('yus_store_session')||'pelanggan';const message=`Halo YUS Store, saya ingin konfirmasi pesanan.\n\nNama akun toko: ${username}\n\nDaftar pesanan:\n${lines}\n\nTotal: ${rupiah(total())}\nMetode pembayaran: ${method}\nBukti transfer: ${proofFile.name} (akan saya lampirkan manual di chat)\n${note?`\nCatatan: ${note}\n`:''}\nMohon dicek ya. Terima kasih.`;const url='https://wa.me/yus1199?text='+encodeURIComponent(message);window.open(url,'_blank','noopener,noreferrer');toast('WhatsApp dibuka. Lampirkan gambar bukti transfer di chat.');});
+$('#year').textContent=new Date().getFullYear();
+showAuth('login');
+const activeUser=sessionStorage.getItem('yus_store_session');if(activeUser)enterStore(activeUser);
